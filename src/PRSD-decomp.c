@@ -108,7 +108,6 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst) {
 
     /* Now that we have the data decrypted, decompress it. */
     if((rv = pso_prs_decompress_buf(cmp_buf, dst, len)) < 0) {
-        free(*dst);
         free(cmp_buf);
         *dst = NULL;
         return rv;
@@ -160,7 +159,6 @@ int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len) {
 
     /* Now that we have the data decrypted, decompress it. */
     if((rv = pso_prs_decompress_buf(cmp_buf, dst, src_len)) < 0) {
-        free(*dst);
         free(cmp_buf);
         *dst = NULL;
         return rv;
