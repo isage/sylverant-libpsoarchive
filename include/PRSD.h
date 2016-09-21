@@ -43,7 +43,7 @@
    psoarchive-error.h). Returns the size of the compressed output on success.
 */
 int pso_prsd_compress(const uint8_t *src, uint8_t **dst, size_t src_len,
-                      uint32_t key);
+                      uint32_t key, int endian);
 
 /* Archive and encrypt a buffer in PRSD format.
 
@@ -57,7 +57,7 @@ int pso_prsd_compress(const uint8_t *src, uint8_t **dst, size_t src_len,
    the return value of prsd_max_compressed_size when called on the same length.
 */
 int pso_prsd_archive(const uint8_t *src, uint8_t **dst, size_t src_len,
-                     uint32_t key);
+                     uint32_t key, int endian);
 
 /* Return the maximum size of archiving a buffer in PRSD format.
 

@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2015 Lawrence Sebald
+    Copyright (C) 2015, 2016 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -41,7 +41,7 @@ size_t pso_prsd_max_compressed_size(size_t len) {
 }
 
 int pso_prsd_archive(const uint8_t *src, uint8_t **dst, size_t src_len,
-                     uint32_t key) {
+                     uint32_t key, int endian) {
     size_t dl;
     uint8_t *db;
     int rv;
@@ -51,6 +51,9 @@ int pso_prsd_archive(const uint8_t *src, uint8_t **dst, size_t src_len,
         return PSOARCHIVE_EFAULT;
 
     if(!src_len)
+        return PSOARCHIVE_EINVAL;
+
+    if(endian < PSO_PRSD_BIG_ENDIAN || endian > PSO_PRSD_LITTLE_ENDIAN)
         return PSOARCHIVE_EINVAL;
 
     /* Figure out the length of our "compressed" buffer and allocate it. */
@@ -66,17 +69,29 @@ int pso_prsd_archive(const uint8_t *src, uint8_t **dst, size_t src_len,
 
     /* Encrypt the "compressed" data. */
     pso_prsd_crypt_init(&ccxt, key);
-    pso_prsd_crypt(&ccxt, db + 8, dl - 8, PSO_PRSD_LITTLE_ENDIAN);
+    pso_prsd_crypt(&ccxt, db + 8, dl - 8, endian);
 
     /* Fill in the header. */
-    db[0] = (uint8_t)src_len;
-    db[1] = (uint8_t)(src_len >> 8);
-    db[2] = (uint8_t)(src_len >> 16);
-    db[3] = (uint8_t)(src_len >> 24);
-    db[4] = (uint8_t)key;
-    db[5] = (uint8_t)(key >> 8);
-    db[6] = (uint8_t)(key >> 16);
-    db[7] = (uint8_t)(key >> 24);
+    if(endian == PSO_PRSD_LITTLE_ENDIAN) {
+        db[0] = (uint8_t)src_len;
+        db[1] = (uint8_t)(src_len >> 8);
+        db[2] = (uint8_t)(src_len >> 16);
+        db[3] = (uint8_t)(src_len >> 24);
+        db[4] = (uint8_t)key;
+        db[5] = (uint8_t)(key >> 8);
+        db[6] = (uint8_t)(key >> 16);
+        db[7] = (uint8_t)(key >> 24);
+    }
+    else {
+        db[0] = (uint8_t)(src_len >> 24);
+        db[1] = (uint8_t)(src_len >> 16);
+        db[2] = (uint8_t)(src_len >> 8);
+        db[3] = (uint8_t)src_len;
+        db[4] = (uint8_t)(key >> 24);
+        db[5] = (uint8_t)(key >> 16);
+        db[6] = (uint8_t)(key >> 8);
+        db[7] = (uint8_t)key;
+    }
 
     /* We're done, return the length of the full buffer. */
     *dst = db;
@@ -84,7 +99,7 @@ int pso_prsd_archive(const uint8_t *src, uint8_t **dst, size_t src_len,
 }
 
 int pso_prsd_compress(const uint8_t *src, uint8_t **dst, size_t src_len,
-                      uint32_t key) {
+                      uint32_t key, int endian) {
     uint8_t *db, *db2;
     int rv;
     struct prsd_crypt_cxt ccxt;
@@ -93,6 +108,9 @@ int pso_prsd_compress(const uint8_t *src, uint8_t **dst, size_t src_len,
         return PSOARCHIVE_EFAULT;
 
     if(!src_len)
+        return PSOARCHIVE_EINVAL;
+
+    if(endian < PSO_PRSD_BIG_ENDIAN || endian > PSO_PRSD_LITTLE_ENDIAN)
         return PSOARCHIVE_EINVAL;
 
     /* Ugly... But it'll work...
@@ -113,17 +131,29 @@ int pso_prsd_compress(const uint8_t *src, uint8_t **dst, size_t src_len,
 
     /* Encrypt the compressed data. */
     pso_prsd_crypt_init(&ccxt, key);
-    pso_prsd_crypt(&ccxt, db2 + 8, rv, PSO_PRSD_LITTLE_ENDIAN);
+    pso_prsd_crypt(&ccxt, db2 + 8, rv, endian);
 
     /* Fill in the header. */
-    db2[0] = (uint8_t)src_len;
-    db2[1] = (uint8_t)(src_len >> 8);
-    db2[2] = (uint8_t)(src_len >> 16);
-    db2[3] = (uint8_t)(src_len >> 24);
-    db2[4] = (uint8_t)key;
-    db2[5] = (uint8_t)(key >> 8);
-    db2[6] = (uint8_t)(key >> 16);
-    db2[7] = (uint8_t)(key >> 24);
+    if(endian == PSO_PRSD_LITTLE_ENDIAN) {
+        db2[0] = (uint8_t)src_len;
+        db2[1] = (uint8_t)(src_len >> 8);
+        db2[2] = (uint8_t)(src_len >> 16);
+        db2[3] = (uint8_t)(src_len >> 24);
+        db2[4] = (uint8_t)key;
+        db2[5] = (uint8_t)(key >> 8);
+        db2[6] = (uint8_t)(key >> 16);
+        db2[7] = (uint8_t)(key >> 24);
+    }
+    else {
+        db2[0] = (uint8_t)(src_len >> 24);
+        db2[1] = (uint8_t)(src_len >> 16);
+        db2[2] = (uint8_t)(src_len >> 8);
+        db2[3] = (uint8_t)src_len;
+        db2[4] = (uint8_t)(key >> 24);
+        db2[5] = (uint8_t)(key >> 16);
+        db2[6] = (uint8_t)(key >> 8);
+        db2[7] = (uint8_t)key;
+    }
 
     /* We're done, return the length of the full buffer. */
     *dst = db2;
