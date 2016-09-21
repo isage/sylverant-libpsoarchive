@@ -75,7 +75,7 @@ pso_gsl_read_t *pso_gsl_read_open_fd(int fd, uint32_t len, uint32_t flags,
     if(!(flags & GSL_ENDIANNESS)) {
         /* Guess big endian first. */
         offset = (buf[35]) | (buf[34] << 8) | (buf[33] << 16) | (buf[32] << 24);
-        size = (buf[39]) | (buf[38] << 8) | ( buf[37] << 16) | (buf[36] << 24);
+        size = (buf[39]) | (buf[38] << 8) | (buf[37] << 16) | (buf[36] << 24);
 
         flags |= PSO_GSL_BIG_ENDIAN;
 
@@ -84,7 +84,7 @@ pso_gsl_read_t *pso_gsl_read_open_fd(int fd, uint32_t len, uint32_t flags,
         if(offset > len || offset * 2048 > len || size > len) {
             offset = (buf[35] << 24) | (buf[34] << 16) | (buf[33] << 8) |
                 (buf[32]);
-            size = (buf[39] << 24) | (buf[38] << 16) | ( buf[37] << 8) |
+            size = (buf[39] << 24) | (buf[38] << 16) | (buf[37] << 8) |
                 (buf[36]);
             flags |= PSO_GSL_LITTLE_ENDIAN;
 
@@ -100,7 +100,7 @@ pso_gsl_read_t *pso_gsl_read_open_fd(int fd, uint32_t len, uint32_t flags,
     }
     else /* if((flags & PSO_GSL_LITTLE_ENDIAN)) */ {
         offset = (buf[35] << 24) | (buf[34] << 16) | (buf[33] << 8) | (buf[32]);
-        size = (buf[39] << 24) | (buf[38] << 16) | ( buf[37] << 8) | (buf[36]);
+        size = (buf[39] << 24) | (buf[38] << 16) | (buf[37] << 8) | (buf[36]);
     }
 
     memcpy(rv->files[0].filename, buf, 32);
@@ -124,13 +124,13 @@ pso_gsl_read_t *pso_gsl_read_open_fd(int fd, uint32_t len, uint32_t flags,
         if((flags & PSO_GSL_BIG_ENDIAN)) {
             offset = (buf[35]) | (buf[34] << 8) | (buf[33] << 16) |
                 (buf[32] << 24);
-            size = (buf[39]) | (buf[38] << 8) | ( buf[37] << 16) |
+            size = (buf[39]) | (buf[38] << 8) | (buf[37] << 16) |
                 (buf[36] << 24);
         }
         else /* if((flags & PSO_GSL_LITTLE_ENDIAN)) */ {
             offset = (buf[35] << 24) | (buf[34] << 16) | (buf[33] << 8) |
                 (buf[32]);
-            size = (buf[39] << 24) | (buf[38] << 16) | ( buf[37] << 8) |
+            size = (buf[39] << 24) | (buf[38] << 16) | (buf[37] << 8) |
                 (buf[36]);
         }
 
