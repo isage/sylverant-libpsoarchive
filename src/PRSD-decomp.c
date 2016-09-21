@@ -92,10 +92,15 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst, int endian) {
         endian = PSO_PRSD_LITTLE_ENDIAN;
         unc_len = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
 
-        /* Not exactly a good way to do it, but I doubt there'll be many files
-           that compress to less than 10% of their original size. */
-        if(unc_len > 10 * len)
-            endian = PSO_PRSD_BIG_ENDIAN;
+        /* If we've got something that looks suspiciously large, see if guessing
+           big endian would make it even more suspiciously large. */
+        if(unc_len > 10 * len) {
+            key = unc_len / len;
+            unc_len = buf[3] | (buf[2] << 8) | (buf[1] << 16) | (buf[0] << 24);
+
+            if(unc_len < key * len)
+                endian = PSO_PRSD_BIG_ENDIAN;
+        }
     }
 
     /* Grab the uncompressed size and key from the source file. */
@@ -175,10 +180,15 @@ int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len,
         endian = PSO_PRSD_LITTLE_ENDIAN;
         unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
 
-        /* Not exactly a good way to do it, but I doubt there'll be many files
-           that compress to less than 10% of their original size. */
-        if(unc_len > 10 * src_len)
-            endian = PSO_PRSD_BIG_ENDIAN;
+        /* If we've got something that looks suspiciously large, see if guessing
+           big endian would make it even more suspiciously large. */
+        if(unc_len > 10 * src_len) {
+            key = unc_len / src_len;
+            unc_len = src[3] | (src[2] << 8) | (src[1] << 16) | (src[0] << 24);
+
+            if(unc_len < key * src_len)
+                endian = PSO_PRSD_BIG_ENDIAN;
+        }
     }
 
     /* Grab the uncompressed size and key from the source buffer. */
@@ -249,10 +259,15 @@ int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
         endian = PSO_PRSD_LITTLE_ENDIAN;
         unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
 
-        /* Not exactly a good way to do it, but I doubt there'll be many files
-           that compress to less than 10% of their original size. */
-        if(unc_len > 10 * src_len)
-            endian = PSO_PRSD_BIG_ENDIAN;
+        /* If we've got something that looks suspiciously large, see if guessing
+           big endian would make it even more suspiciously large. */
+        if(unc_len > 10 * src_len) {
+            key = unc_len / src_len;
+            unc_len = src[3] | (src[2] << 8) | (src[1] << 16) | (src[0] << 24);
+
+            if(unc_len < key * src_len)
+                endian = PSO_PRSD_BIG_ENDIAN;
+        }
     }
 
     /* Grab the uncompressed size and key from the source buffer. */
@@ -301,7 +316,7 @@ int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
 }
 
 int pso_prsd_decompress_size(const uint8_t *src, size_t src_len, int endian) {
-    uint32_t unc_len;
+    uint32_t tmp, tmp2;
 
     /* Verify the input parameters. */
     if(!src)
@@ -317,12 +332,17 @@ int pso_prsd_decompress_size(const uint8_t *src, size_t src_len, int endian) {
     if(endian == PSO_PRSD_AUTO_ENDIAN) {
         /* Assume little endian first, because it's probably the right idea. */
         endian = PSO_PRSD_LITTLE_ENDIAN;
-        unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+        tmp = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
 
-        /* Not exactly a good way to do it, but I doubt there'll be many files
-           that compress to less than 10% of their original size. */
-        if(unc_len > 10 * src_len)
-            endian = PSO_PRSD_BIG_ENDIAN;
+        /* If we've got something that looks suspiciously large, see if guessing
+           big endian would make it even more suspiciously large. */
+        if(tmp > 10 * src_len) {
+            tmp2 = tmp / src_len;
+            tmp = src[3] | (src[2] << 8) | (src[1] << 16) | (src[0] << 24);
+
+            if(tmp < tmp2 * src_len)
+                endian = PSO_PRSD_BIG_ENDIAN;
+        }
     }
 
     if(endian == PSO_PRSD_BIG_ENDIAN)
