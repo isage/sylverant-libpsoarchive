@@ -1,0 +1,58 @@
+Quick and Dirty PRSD (PR2/PR3) Format Documentation
+---------------------------------------------------
+
+--------------------------------------------------------------------------------
+                                 Introduction
+--------------------------------------------------------------------------------
+
+This text file explains the PR2/PR3 file format, as used in the Phantasy Star
+Online series of games. This format is a combination of compression using the
+PRS compression algorithm (see prs.txt) and a bit of encryption of the contents,
+along with a small file header. Files in this format are always distributed as
+two files: filename.pr2 and filename.pr3. You must have both parts in order to
+have the files work properly in PSO!
+
+Both files are encrypted and compressed in exactly the same manner.
+
+PSO for Gamecube uses big endian byte ordering for all multi-byte quantities in
+these files, whereas the other versions of PSO (Dreamcast, PC, Blue Burst) all
+use little endian byte ordering.
+
+--------------------------------------------------------------------------------
+                                    Format
+--------------------------------------------------------------------------------
+
+Each PR2 or PR3 file begins with a small (unencrypted/uncompressed) header:
+    4 bytes: Decompressed file size
+    4 bytes: Decryption key
+
+Immediately after the header, all the remaining data is compressed then
+encrypted. Thus, to recover the file data, you must decrypt then decompress the
+data. Decompression follows the normal PRS algorithm (see prs.txt). Decryption
+is done using the same cipher that is used for encrypting and decrypting packets
+in PSO for Dreamcast and PSO for PC (and thus is omitted from this document).
+One thing to note is that PSO for Gamecube requires a small change to the
+encryption code -- when encrypting/decrypting, you must swap the byte ordering
+of each dword.
+
+PR2 files can contain practically any type of data, and are typically some data
+(such as translation strings) followed by a table of pointers. The PR3 file is
+used to "interpret" the pointer table. The PR3 file is formatted in the
+following manner:
+
+    4 bytes: Pointer to beginning of data? (always seems to be 0x00000020,
+             ignored by Sega's parser)
+    4 bytes: Number of pointer entries (hereafter "n")
+    4 bytes: Unknown (always seems to be 0x00000001, ignored by Sega's parser)
+    4 bytes: Unknown (all zeroes, ignored by Sega's parser)
+    4 bytes: Unknown (ignored by Sega's parser, seems to always be slightly
+             smaller than the length of the uncompressed PR2 file)
+    12 bytes: Unknown (all zeroes, ignored by Sega's parser)
+    2 * n bytes: Number of dwords to advance to next pointer
+
+When parsing the files, Sega's parser will read in both the PR2 and PR3 files,
+then it will loop through all the entries in the PR3 file, updating the pointers
+in the memory copy of the PR2 file to point to the base of the PR2 file plus
+whatever the pointer in the file says. It does this by using each of the entries
+in the PR3 file to know where to go next in the PR2 file. Why they went with
+this overly-complex 2 file format, versus their normal .rel files, who knows?
