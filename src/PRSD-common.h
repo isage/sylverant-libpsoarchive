@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2015 Lawrence Sebald
+    Copyright (C) 2015, 2016 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -27,4 +27,4 @@ struct prsd_crypt_cxt {
 
 /* These functions are all for internal use only. */
 void pso_prsd_crypt_init(struct prsd_crypt_cxt *cxt, uint32_t key);
-void pso_prsd_crypt(struct prsd_crypt_cxt *cxt, void *d, uint32_t len);
+void pso_prsd_crypt(struct prsd_crypt_cxt *cxt, void *d, uint32_t len, int end);

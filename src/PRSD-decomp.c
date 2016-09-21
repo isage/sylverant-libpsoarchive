@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2015 Lawrence Sebald
+    Copyright (C) 2015, 2016 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -37,7 +37,7 @@
 #include "PRSD.h"
 #include "PRS.h"
 
-int pso_prsd_decompress_file(const char *fn, uint8_t **dst) {
+int pso_prsd_decompress_file(const char *fn, uint8_t **dst, int endian) {
     long len;
     int rv;
     FILE *fp;
@@ -45,9 +45,13 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst) {
     uint32_t key, unc_len;
     uint8_t *cmp_buf;
     struct prsd_crypt_cxt ccxt;
+    int autodet = 0;
 
     if(!fn || !dst)
         return PSOARCHIVE_EFAULT;
+
+    if(endian > PSO_PRSD_LITTLE_ENDIAN || endian < PSO_PRSD_AUTO_ENDIAN)
+        return PSOARCHIVE_EINVAL;
 
     if(!(fp = fopen(fn, "rb")))
         return PSOARCHIVE_EFILE;
@@ -82,8 +86,28 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst) {
         return PSOARCHIVE_EIO;
     }
 
-    unc_len = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
-    key = buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
+    /* For auto, Detect endianness... */
+    if(endian == PSO_PRSD_AUTO_ENDIAN) {
+        /* Assume little endian first, because it's probably the right idea. */
+        endian = PSO_PRSD_LITTLE_ENDIAN;
+        unc_len = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+
+        /* Not exactly a good way to do it, but I doubt there'll be many files
+           that compress to less than 10% of their original size. */
+        if(unc_len > 10 * len)
+            endian = PSO_PRSD_BIG_ENDIAN;
+    }
+
+    /* Grab the uncompressed size and key from the source file. */
+    if(endian == PSO_PRSD_BIG_ENDIAN) {
+        unc_len = buf[3] | (buf[2] << 8) | (buf[1] << 16) | (buf[0] << 24);
+        key = buf[7] | (buf[6] << 8) | (buf[5] << 16) | (buf[4] << 24);
+    }
+    else {
+        unc_len = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+        key = buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
+    }
+
     len -= 8;
 
     /* Allocate space for the compressed/encrypted data. */
@@ -104,7 +128,7 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst) {
 
     /* Decrypt the file data. */
     pso_prsd_crypt_init(&ccxt, key);
-    pso_prsd_crypt(&ccxt, cmp_buf, len);
+    pso_prsd_crypt(&ccxt, cmp_buf, len, endian);
 
     /* Now that we have the data decrypted, decompress it. */
     if((rv = pso_prs_decompress_buf(cmp_buf, dst, len)) < 0) {
@@ -128,7 +152,8 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst) {
     return rv;
 }
 
-int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len) {
+int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len,
+                            int endian) {
     uint32_t key, unc_len;
     uint8_t *cmp_buf;
     struct prsd_crypt_cxt ccxt;
@@ -141,9 +166,31 @@ int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len) {
     if(src_len < 11)
         return PSOARCHIVE_EBADMSG;
 
+    if(endian > PSO_PRSD_LITTLE_ENDIAN || endian < PSO_PRSD_AUTO_ENDIAN)
+        return PSOARCHIVE_EINVAL;
+
+    /* For auto, Detect endianness... */
+    if(endian == PSO_PRSD_AUTO_ENDIAN) {
+        /* Assume little endian first, because it's probably the right idea. */
+        endian = PSO_PRSD_LITTLE_ENDIAN;
+        unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+
+        /* Not exactly a good way to do it, but I doubt there'll be many files
+           that compress to less than 10% of their original size. */
+        if(unc_len > 10 * src_len)
+            endian = PSO_PRSD_BIG_ENDIAN;
+    }
+
     /* Grab the uncompressed size and key from the source buffer. */
-    unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
-    key = src[4] | (src[5] << 8) | (src[6] << 16) | (src[7] << 24);
+    if(endian == PSO_PRSD_BIG_ENDIAN) {
+        unc_len = src[3] | (src[2] << 8) | (src[1] << 16) | (src[0] << 24);
+        key = src[7] | (src[6] << 8) | (src[5] << 16) | (src[4] << 24);
+    }
+    else {
+        unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+        key = src[4] | (src[5] << 8) | (src[6] << 16) | (src[7] << 24);
+    }
+
     src_len -= 8;
 
     /* Allocate space for the compressed/encrypted data. */
@@ -155,7 +202,7 @@ int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len) {
 
     /* Decrypt the file data. */
     pso_prsd_crypt_init(&ccxt, key);
-    pso_prsd_crypt(&ccxt, cmp_buf, src_len);
+    pso_prsd_crypt(&ccxt, cmp_buf, src_len, endian);
 
     /* Now that we have the data decrypted, decompress it. */
     if((rv = pso_prs_decompress_buf(cmp_buf, dst, src_len)) < 0) {
@@ -180,7 +227,7 @@ int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len) {
 }
 
 int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
-                             size_t dst_len) {
+                             size_t dst_len, int endian) {
     uint32_t key, unc_len;
     uint8_t *cmp_buf;
     struct prsd_crypt_cxt ccxt;
@@ -193,9 +240,31 @@ int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
     if(src_len < 11)
         return PSOARCHIVE_EBADMSG;
 
+    if(endian > PSO_PRSD_LITTLE_ENDIAN || endian < PSO_PRSD_AUTO_ENDIAN)
+        return PSOARCHIVE_EINVAL;
+
+    /* For auto, Detect endianness... */
+    if(endian == PSO_PRSD_AUTO_ENDIAN) {
+        /* Assume little endian first, because it's probably the right idea. */
+        endian = PSO_PRSD_LITTLE_ENDIAN;
+        unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+
+        /* Not exactly a good way to do it, but I doubt there'll be many files
+           that compress to less than 10% of their original size. */
+        if(unc_len > 10 * src_len)
+            endian = PSO_PRSD_BIG_ENDIAN;
+    }
+
     /* Grab the uncompressed size and key from the source buffer. */
-    unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
-    key = src[4] | (src[5] << 8) | (src[6] << 16) | (src[7] << 24);
+    if(endian == PSO_PRSD_BIG_ENDIAN) {
+        unc_len = src[3] | (src[2] << 8) | (src[1] << 16) | (src[0] << 24);
+        key = src[7] | (src[6] << 8) | (src[5] << 16) | (src[4] << 24);
+    }
+    else {
+        unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+        key = src[4] | (src[5] << 8) | (src[6] << 16) | (src[7] << 24);
+    }
+
     src_len -= 8;
 
     /* Make sure the buffer the user gave us is big enough. */
@@ -211,7 +280,7 @@ int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
 
     /* Decrypt the file data. */
     pso_prsd_crypt_init(&ccxt, key);
-    pso_prsd_crypt(&ccxt, cmp_buf, src_len);
+    pso_prsd_crypt(&ccxt, cmp_buf, src_len, endian);
 
     /* Now that we have the data decrypted, decompress it. */
     if((rv = pso_prs_decompress_buf2(cmp_buf, dst, src_len, dst_len)) < 0) {
@@ -231,7 +300,9 @@ int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
     return rv;
 }
 
-int pso_prsd_decompress_size(const uint8_t *src, size_t src_len) {
+int pso_prsd_decompress_size(const uint8_t *src, size_t src_len, int endian) {
+    uint32_t unc_len;
+
     /* Verify the input parameters. */
     if(!src)
         return PSOARCHIVE_EFAULT;
@@ -239,5 +310,23 @@ int pso_prsd_decompress_size(const uint8_t *src, size_t src_len) {
     if(src_len < 11)
         return PSOARCHIVE_EBADMSG;
 
-    return (int)(src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24));
+    if(endian > PSO_PRSD_LITTLE_ENDIAN || endian < PSO_PRSD_AUTO_ENDIAN)
+        return PSOARCHIVE_EINVAL;
+
+    /* For auto, Detect endianness... */
+    if(endian == PSO_PRSD_AUTO_ENDIAN) {
+        /* Assume little endian first, because it's probably the right idea. */
+        endian = PSO_PRSD_LITTLE_ENDIAN;
+        unc_len = src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24);
+
+        /* Not exactly a good way to do it, but I doubt there'll be many files
+           that compress to less than 10% of their original size. */
+        if(unc_len > 10 * src_len)
+            endian = PSO_PRSD_BIG_ENDIAN;
+    }
+
+    if(endian == PSO_PRSD_BIG_ENDIAN)
+        return (int)(src[3] | (src[2] << 8) | (src[1] << 16) | (src[0] << 24));
+    else
+        return (int)(src[0] | (src[1] << 8) | (src[2] << 16) | (src[3] << 24));
 }

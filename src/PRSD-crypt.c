@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2015 Lawrence Sebald
+    Copyright (C) 2015, 2016 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -42,14 +42,20 @@
  ******************************************************************************/
 
 #include "PRSD-common.h"
+#include "PRSD.h"
 
 #if defined(__BIG_ENDIAN__) || defined(WORDS_BIGENDIAN)
 #define LE32(x) (((x >> 24) & 0x00FF) | \
                  ((x >>  8) & 0xFF00) | \
                  ((x & 0xFF00) <<  8) | \
                  ((x & 0x00FF) << 24))
+#define BE32() x
 #else
 #define LE32(x) x
+#define BE32(x) (((x >> 24) & 0x00FF) | \
+                 ((x >>  8) & 0xFF00) | \
+                 ((x & 0xFF00) <<  8) | \
+                 ((x & 0x00FF) << 24))
 #endif
 
 static void mix_stream(struct prsd_crypt_cxt *cxt) {
@@ -96,16 +102,26 @@ static inline uint32_t crypt_dword(struct prsd_crypt_cxt *cxt, uint32_t data) {
     return data ^ cxt->stream[cxt->pos++];
 }
 
-void pso_prsd_crypt(struct prsd_crypt_cxt *cxt, void *d, uint32_t len) {
+void pso_prsd_crypt(struct prsd_crypt_cxt *cxt, void *d, uint32_t len,
+                    int endian) {
     uint32_t *data = (uint32_t *)d;
     uint32_t tmp;
 
     /* Round the size of the buffer to the next 4-byte boundary. */
     len = (len + 3) & 0xFFFFFFFC;
 
-    while(len > 0) {
-        tmp = crypt_dword(cxt, LE32((*data)));
-        *data++ = LE32(tmp);
-        len -= 4;
+    if(endian == PSO_PRSD_LITTLE_ENDIAN) {
+        while(len > 0) {
+            tmp = crypt_dword(cxt, LE32((*data)));
+            *data++ = LE32(tmp);
+            len -= 4;
+        }
+    }
+    else {
+        while(len > 0) {
+            tmp = crypt_dword(cxt, BE32((*data)));
+            *data++ = BE32(tmp);
+            len -= 4;
+        }
     }
 }

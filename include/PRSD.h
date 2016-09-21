@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2015 Lawrence Sebald
+    Copyright (C) 2015, 2016 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -25,6 +25,11 @@
 #include <sys/types.h>
 
 #include "psoarchive-error.h"
+
+/* Endianness values. Auto is only valid for decompression. */
+#define PSO_PRSD_AUTO_ENDIAN            0
+#define PSO_PRSD_BIG_ENDIAN             1
+#define PSO_PRSD_LITTLE_ENDIAN          2
 
 /* Compress a buffer with PRSD compression and encryption.
 
@@ -72,7 +77,7 @@ size_t pso_prsd_max_compressed_size(size_t len);
    Returns a negative value on failure (specifically something from
    psoarchive-error.h). Returns the size of the decompressed output on success.
 */
-int pso_prsd_decompress_file(const char *fn, uint8_t **dst);
+int pso_prsd_decompress_file(const char *fn, uint8_t **dst, int endian);
 
 /* Decompress PRSD-compressed data from a memory buffer.
 
@@ -84,7 +89,8 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst);
    Returns a negative value on failure (specifically something from
    psoarchive-error.h). Returns the size of the decompressed output on success.
 */
-int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len);
+int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len,
+                            int endian);
 
 /* Decompress PRSD-compressed data from a memory buffer into a previously
    allocated memory buffer.
@@ -99,7 +105,7 @@ int pso_prsd_decompress_buf(const uint8_t *src, uint8_t **dst, size_t src_len);
    psoarchive-error.h). Returns the size of the decompressed output on success.
 */
 int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
-                             size_t dst_len);
+                             size_t dst_len, int endian);
 
 /* Determine the size that the PRSD-compressed data in a buffer will expand to.
 
@@ -109,6 +115,7 @@ int pso_prsd_decompress_buf2(const uint8_t *src, uint8_t *dst, size_t src_len,
    Returns a negative value on failure (specifically something from
    psoarchive-error.h). Returns the size of the decompressed output on success.
 */
-int pso_prsd_decompress_size(const uint8_t *src, size_t src_len);
+int pso_prsd_decompress_size(const uint8_t *src, size_t src_len,
+                             int endian);
 
 #endif /* !PSOARCHIVE__PRS_H */
