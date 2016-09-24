@@ -86,6 +86,7 @@ pso_gsl_read_t *pso_gsl_read_open_fd(int fd, uint32_t len, uint32_t flags,
                 (buf[32]);
             size = (buf[39] << 24) | (buf[38] << 16) | (buf[37] << 8) |
                 (buf[36]);
+            flags &= ~PSO_GSL_BIG_ENDIAN;
             flags |= PSO_GSL_LITTLE_ENDIAN;
 
             if(offset * 2048 > len || size > len) {
