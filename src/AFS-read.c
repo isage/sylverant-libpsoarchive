@@ -44,6 +44,12 @@ struct pso_afs_read {
     uint32_t flags;
 };
 
+static int digits(uint32_t n) {
+    int r = 1;
+    while(n /= 10) ++r;
+    return r;
+}
+
 pso_afs_read_t *pso_afs_read_open_fd(int fd, uint32_t len, uint32_t flags,
                                      pso_error_t *err) {
     pso_afs_read_t *rv;
@@ -192,14 +198,18 @@ uint32_t pso_afs_file_lookup(pso_afs_read_t *a, const char *fn) {
 
 pso_error_t pso_afs_file_name(pso_afs_read_t *a, uint32_t hnd, char *fn,
                               size_t len) {
+    int dg;
+
     /* Make sure the arguments are sane... */
     if(!a || hnd >= a->file_count)
         return PSOARCHIVE_EFATAL;
 
+    dg = digits(a->file_count);
+
 #ifndef _WIN32
-    snprintf(fn, len, "%05" PRIu32 ".bin", hnd);
+    snprintf(fn, len, "%0*" PRIu32 ".bin", dg, hnd);
 #else
-    snprintf(fn, len, "%05I32u.bin", hnd);
+    snprintf(fn, len, "%0*I32u.bin", dg, hnd);
 #endif
 
     return PSOARCHIVE_OK;
@@ -208,7 +218,7 @@ pso_error_t pso_afs_file_name(pso_afs_read_t *a, uint32_t hnd, char *fn,
 ssize_t pso_afs_file_size(pso_afs_read_t *a, uint32_t hnd) {
     /* Make sure the arguments are sane... */
     if(!a || hnd >= a->file_count)
-        return -1;
+        return PSOARCHIVE_EFATAL;
 
     return (ssize_t)a->files[hnd].size;
 }
@@ -217,18 +227,18 @@ ssize_t pso_afs_file_read(pso_afs_read_t *a, uint32_t hnd, uint8_t *buf,
                           size_t len) {
     /* Make sure the arguments are sane... */
     if(!a || hnd > a->file_count || !buf || !len)
-        return -1;
+        return PSOARCHIVE_EFATAL;
 
     /* Seek to the appropriate position in the file. */
     if(lseek(a->fd, a->files[hnd].offset, SEEK_SET) == (off_t) -1)
-        return -1;
+        return PSOARCHIVE_EIO;
 
     /* Figure out how much we're going to read... */
     if(a->files[hnd].size < len)
         len = a->files[hnd].size;
 
     if(read(a->fd, buf, len) != len)
-        return -1;
+        return PSOARCHIVE_EIO;
 
     return (ssize_t)len;
 }
