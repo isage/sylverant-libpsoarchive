@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2015 Lawrence Sebald
+    Copyright (C) 2015, 2016 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -21,6 +21,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
+#include <sys/stat.h>
 
 #include <fcntl.h>
 
@@ -29,6 +31,28 @@
 #endif
 
 #include "AFS.h"
+
+#if defined(__BIG_ENDIAN__) || defined(WORDS_BIGENDIAN)
+#define LE16(x) (((x >> 8) & 0xFF00) | ((x & 0xFF00) << 8))
+#define LE32(x) (((x >> 24) & 0x00FF) | \
+                 ((x >>  8) & 0xFF00) | \
+                 ((x & 0xFF00) <<  8) | \
+                 ((x & 0x00FF) << 24))
+#else
+#define LE16(x) x
+#define LE32(x) x
+#endif
+
+struct afs_fn {
+    char filename[32];
+    uint16_t year;
+    uint16_t month;
+    uint16_t day;
+    uint16_t hour;
+    uint16_t minute;
+    uint16_t second;
+    uint32_t size;
+};
 
 struct pso_afs_write {
     int fd;
@@ -39,6 +63,9 @@ struct pso_afs_write {
 
     off_t ftab_pos;
     off_t data_pos;
+
+    struct afs_fn *fns;
+    int fns_allocd;
 };
 
 static off_t pad_file(int fd, int boundary) {
@@ -76,6 +103,18 @@ pso_afs_write_t *pso_afs_new(const char *fn, uint32_t flags, pso_error_t *err) {
         goto ret_mem;
     }
 
+    /* Allocate a filename table array, if the user has asked for it. */
+    if((flags & PSO_AFS_FN_TABLE)) {
+        if(!(rv->fns = (struct afs_fn *)malloc(sizeof(struct afs_fn) * 64))) {
+            erv = PSOARCHIVE_EMEM;
+            close(rv->fd);
+            goto ret_mem;
+        }
+
+        memset(rv->fns, 0, sizeof(struct afs_fn) * 64);
+        rv->fns_allocd = 64;
+    }
+
     /* Fill in the base structure with our defaults. */
     rv->ftab_used = 0;
     rv->ftab_pos = 8;
@@ -107,6 +146,18 @@ pso_afs_write_t *pso_afs_new_fd(int fd, uint32_t flags, pso_error_t *err) {
         goto ret_err;
     }
 
+    /* Allocate a filename table array, if the user has asked for it. */
+    if((flags & PSO_AFS_FN_TABLE)) {
+        if(!(rv->fns = (struct afs_fn *)malloc(sizeof(struct afs_fn) * 64))) {
+            erv = PSOARCHIVE_EMEM;
+            free(rv);
+            goto ret_err;
+        }
+
+        memset(rv->fns, 0, sizeof(struct afs_fn) * 64);
+        rv->fns_allocd = 64;
+    }
+
     /* Fill in the base structure with our data. */
     rv->fd = fd;
     rv->ftab_used = 0;
@@ -128,7 +179,9 @@ ret_err:
 }
 
 pso_error_t pso_afs_write_close(pso_afs_write_t *a) {
-    uint8_t buf[8];
+    uint8_t buf[48];
+    uint32_t len;
+    int i;
 
     if(!a || a->fd < 0)
         return PSOARCHIVE_EFATAL;
@@ -149,6 +202,60 @@ pso_error_t pso_afs_write_close(pso_afs_write_t *a) {
     if(write(a->fd, buf, 8) != 8)
         return PSOARCHIVE_EIO;
 
+    /* If the user has asked for a filename array, write it out too. */
+    if((a->flags & PSO_AFS_FN_TABLE)) {
+        /* First, write the entry in the file table. */
+        len = a->ftab_used * 48;
+
+        if(lseek(a->fd, a->ftab_pos, SEEK_SET) == (off_t)-1)
+            return PSOARCHIVE_EIO;
+
+        /* Copy the file data into the buffer... */
+        buf[0] = (uint8_t)(a->data_pos);
+        buf[1] = (uint8_t)(a->data_pos >> 8);
+        buf[2] = (uint8_t)(a->data_pos >> 16);
+        buf[3] = (uint8_t)(a->data_pos >> 24);
+        buf[4] = (uint8_t)(len);
+        buf[5] = (uint8_t)(len >> 8);
+        buf[6] = (uint8_t)(len >> 16);
+        buf[7] = (uint8_t)(len >> 24);
+
+        if(write(a->fd, buf, 8) != 8)
+            return PSOARCHIVE_EIO;
+
+        /* Next, write out the data. */
+        if(lseek(a->fd, a->data_pos, SEEK_SET) == (off_t)-1)
+            return PSOARCHIVE_EIO;
+
+        for(i = 0; i < a->ftab_used; ++i) {
+            /* Fill it in first. */
+            memcpy(buf, a->fns[i].filename, 32);
+            buf[32] = (uint8_t)(a->fns[i].year);
+            buf[33] = (uint8_t)(a->fns[i].year >> 8);
+            buf[34] = (uint8_t)(a->fns[i].month);
+            buf[35] = (uint8_t)(a->fns[i].month >> 8);
+            buf[36] = (uint8_t)(a->fns[i].day);
+            buf[37] = (uint8_t)(a->fns[i].day >> 8);
+            buf[38] = (uint8_t)(a->fns[i].hour);
+            buf[39] = (uint8_t)(a->fns[i].hour >> 8);
+            buf[40] = (uint8_t)(a->fns[i].minute);
+            buf[41] = (uint8_t)(a->fns[i].minute >> 8);
+            buf[42] = (uint8_t)(a->fns[i].second);
+            buf[43] = (uint8_t)(a->fns[i].second >> 8);
+            buf[44] = (uint8_t)(a->fns[i].size);
+            buf[45] = (uint8_t)(a->fns[i].size >> 8);
+            buf[46] = (uint8_t)(a->fns[i].size >> 16);
+            buf[47] = (uint8_t)(a->fns[i].size >> 24);
+
+            /* Write it out. */
+            if(write(a->fd, buf, 48) != 48)
+                return PSOARCHIVE_EIO;
+        }
+
+        /* Pad the data position out to a nice boundary. */
+        a->data_pos = pad_file(a->fd, 2048);
+    }
+
     close(a->fd);
     free(a);
 
@@ -157,9 +264,15 @@ pso_error_t pso_afs_write_close(pso_afs_write_t *a) {
 
 pso_error_t pso_afs_write_add(pso_afs_write_t *a, const char *fn,
                               const uint8_t *data, uint32_t len) {
-    uint8_t buf[8];
+    return pso_afs_write_add_ex(a, fn, data, len, time(NULL));
+}
 
-    (void)fn;
+pso_error_t pso_afs_write_add_ex(pso_afs_write_t *a, const char *fn,
+                                 const uint8_t *data, uint32_t len,
+                                 time_t ts) {
+    uint8_t buf[8];
+    void *tmp;
+    struct tm *tmv;
 
     if(!a)
         return PSOARCHIVE_EFATAL;
@@ -177,6 +290,33 @@ pso_error_t pso_afs_write_add(pso_afs_write_t *a, const char *fn,
     buf[5] = (uint8_t)(len >> 8);
     buf[6] = (uint8_t)(len >> 16);
     buf[7] = (uint8_t)(len >> 24);
+
+    /* Fill in the file information in the filename table, if applicable. */
+    if((a->flags & PSO_AFS_FN_TABLE)) {
+        /* Do we need to reallocate the filename table? */
+        if(a->ftab_used == a->fns_allocd) {
+            tmp = realloc(a->fns, sizeof(struct afs_fn) * (a->fns_allocd * 2));
+            if(!tmp)
+                return PSOARCHIVE_EMEM;
+
+            a->fns_allocd *= 2;
+            a->fns = (struct afs_fn *)tmp;
+        }
+
+        /* Fill in the entry. */
+        strncpy(a->fns[a->ftab_used].filename, fn, 32);
+
+        /* Parse the date from the timestamp passed in and save it. */
+        tmv = gmtime(&ts);
+
+        a->fns[a->ftab_used].year = LE16(tmv->tm_year + 1900);
+        a->fns[a->ftab_used].month = LE16(tmv->tm_mon);
+        a->fns[a->ftab_used].day = LE16(tmv->tm_mday);
+        a->fns[a->ftab_used].hour = LE16(tmv->tm_hour);
+        a->fns[a->ftab_used].minute = LE16(tmv->tm_min);
+        a->fns[a->ftab_used].second = LE16(tmv->tm_sec);
+        a->fns[a->ftab_used].size = LE32(len);
+    }
 
     /* Write out the header... */
     if(write(a->fd, buf, 8) != 8)
@@ -204,8 +344,9 @@ pso_error_t pso_afs_write_add_fd(pso_afs_write_t *a, const char *fn, int fd,
                                  uint32_t len) {
     uint8_t buf[512];
     ssize_t bytes;
-
-    (void)fn;
+    void *tmp;
+    struct stat st;
+    struct tm *tmv;
 
     if(!a)
         return PSOARCHIVE_EFATAL;
@@ -223,6 +364,37 @@ pso_error_t pso_afs_write_add_fd(pso_afs_write_t *a, const char *fn, int fd,
     buf[5] = (uint8_t)(len >> 8);
     buf[6] = (uint8_t)(len >> 16);
     buf[7] = (uint8_t)(len >> 24);
+
+    /* Fill in the file information in the filename table, if applicable. */
+    if((a->flags & PSO_AFS_FN_TABLE)) {
+        /* Do we need to reallocate the filename table? */
+        if(a->ftab_used == a->fns_allocd) {
+            tmp = realloc(a->fns, sizeof(struct afs_fn) * (a->fns_allocd * 2));
+            if(!tmp)
+                return PSOARCHIVE_EMEM;
+
+            a->fns_allocd *= 2;
+            a->fns = (struct afs_fn *)tmp;
+        }
+
+        /* Fill in the entry. */
+        strncpy(a->fns[a->ftab_used].filename, fn, 32);
+
+        /* Get the modification date of the file, so we can fill in the
+           timestamp properly. */
+        if((fstat(fd, &st)) < 0)
+            return PSOARCHIVE_EFILE;
+
+        tmv = gmtime(&st.st_mtime);
+
+        a->fns[a->ftab_used].year = LE16(tmv->tm_year + 1900);
+        a->fns[a->ftab_used].month = LE16(tmv->tm_mon);
+        a->fns[a->ftab_used].day = LE16(tmv->tm_mday);
+        a->fns[a->ftab_used].hour = LE16(tmv->tm_hour);
+        a->fns[a->ftab_used].minute = LE16(tmv->tm_min);
+        a->fns[a->ftab_used].second = LE16(tmv->tm_sec);
+        a->fns[a->ftab_used].size = LE32(len);
+    }
 
     /* Write out the header... */
     if(write(a->fd, buf, 8) != 8)
