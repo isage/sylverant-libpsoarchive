@@ -59,7 +59,19 @@ struct pso_afs_read {
 };
 
 #ifdef _WIN32
-#define timegm _mkgmtime
+time_t my_timegm (struct tm *tm) {
+    time_t ret;
+    char *tz;
+
+    /* Should really restore the TZ after this... At some point. */
+
+    putenv("TZ");
+    tzset();
+    ret = mktime(tm);
+    return ret;
+}
+
+#define timegm my_timegm
 #endif
 
 #if defined(__BIG_ENDIAN__) || defined(WORDS_BIGENDIAN)
