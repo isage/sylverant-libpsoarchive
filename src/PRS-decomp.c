@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2014, 2015 Lawrence Sebald
+    Copyright (C) 2014, 2015, 2017 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -165,7 +165,7 @@ static int copy_byte(struct prs_dec_cxt *cxt) {
         return PSOARCHIVE_ENOSPC;
 
     /* Copy the byte and increment all the counters/pointers. */
-    *cxt->dst++ = *cxt->src++;
+    *(cxt->dst + cxt->dst_pos) = *cxt->src++;
     ++cxt->src_pos;
     ++cxt->dst_pos;
 
@@ -214,7 +214,7 @@ static int offset_copy(struct prs_dec_cxt *cxt, int offset) {
         return PSOARCHIVE_ENOSPC;
 
     /* Copy the byte and increment all the counters/pointers. */
-    *cxt->dst++ = *(cxt->dst + offset);
+    *(cxt->dst + cxt->dst_pos) = *(cxt->dst + offset);
     ++cxt->dst_pos;
 
     return PSOARCHIVE_OK;
