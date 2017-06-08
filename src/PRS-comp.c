@@ -1,7 +1,7 @@
 /*
     This file is part of libpsoarchive.
 
-    Copyright (C) 2014, 2015 Lawrence Sebald
+    Copyright (C) 2014, 2015, 2017 Lawrence Sebald
 
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as
@@ -216,7 +216,7 @@ static int find_longest_match(struct prs_comp_cxt *cxt, struct prs_hash_cxt *hc,
     diff = (uintptr_t)ent - (uintptr_t)cxt->src;
 
     /* If we'd go outside the window, truncate the hash chain now. */
-    if(cxt->src_pos - diff > MAX_WINDOW) {
+    if(cxt->src_pos - diff > (MAX_WINDOW - 1)) {
         hc->ENT(hash) = NULL;
         if(!lazy)
             ADD_TO_HASH(hc, cxt->src + cxt->src_pos, hash);
@@ -239,7 +239,7 @@ static int find_longest_match(struct prs_comp_cxt *cxt, struct prs_hash_cxt *hc,
             diff = (uintptr_t)ent2 - (uintptr_t)cxt->src;
 
             /* If we'd go outside the window, truncate the hash chain now. */
-            if(cxt->src_pos - diff > MAX_WINDOW) {
+            if(cxt->src_pos - diff > (MAX_WINDOW - 1)) {
                 hc->PREV(ent) = NULL;
                 ent2 = NULL;
             }
