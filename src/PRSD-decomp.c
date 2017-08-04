@@ -45,7 +45,6 @@ int pso_prsd_decompress_file(const char *fn, uint8_t **dst, int endian) {
     uint32_t key, unc_len;
     uint8_t *cmp_buf;
     struct prsd_crypt_cxt ccxt;
-    int autodet = 0;
 
     if(!fn || !dst)
         return PSOARCHIVE_EFAULT;

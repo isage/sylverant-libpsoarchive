@@ -137,8 +137,8 @@ pso_gsl_write_t *pso_gsl_new_fd(int fd, uint32_t flags, pso_error_t *err) {
 
     return rv;
 
-ret_mem:
-    free(rv);
+//ret_mem:
+//    free(rv);
 ret_err:
     if(err)
         *err = erv;
